@@ -15,6 +15,7 @@ type ThrottleTimer struct {
 	Name  string
 	Ch    chan struct{}
 	quit  chan struct{}
+	start chan struct{}
 	dur   time.Duration
 	timer *time.Timer
 	isSet uint32
@@ -23,13 +24,16 @@ type ThrottleTimer struct {
 func NewThrottleTimer(name string, dur time.Duration) *ThrottleTimer {
 	var ch = make(chan struct{})
 	var quit = make(chan struct{})
-	var t = &ThrottleTimer{Name: name, Ch: ch, dur: dur, quit: quit}
+	var start = make(chan struct{})
+	var t = &ThrottleTimer{Name: name, Ch: ch, dur: dur, quit: quit, start: start}
 	t.timer = time.AfterFunc(dur, t.fireRoutine)
+	close(t.start)
 	t.timer.Stop()
 	return t
 }
 
 func (t *ThrottleTimer) fireRoutine() {
+	<-t.start // pulling on a closed channel is fine
 	select {
 	case t.Ch <- struct{}{}:
 		atomic.StoreUint32(&t.isSet, 0)
